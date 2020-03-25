@@ -1,0 +1,13 @@
+---
+title: "Housing Model"
+author: "Jackson Hamilton"
+date: "3/25/2020"
+output: html_document
+---
+
+```{r}
+library(readxl)
+Housingdata <- read_xlsx("Housing.xlsx")
+```
+
+
