@@ -4,10 +4,57 @@ author: "Jackson Hamilton"
 date: "3/25/2020"
 output: html_document
 ---
+```{r}
+library(ggplot2)
+
+```
+
+##Data Summary
 
 ```{r}
 library(readxl)
-Housingdata <- read_xlsx("Housing.xlsx")
+Housing <- read_excel("Housing.xlsx")
+Housing
 ```
 
+```{r}
+statusact <- ifelse(Housing$status == "act", 1, 0)
+statuspen <- ifelse(Housing$status == "pen", 1, 0)
+statussld <- ifelse(Housing$status == "sld", 1, 0)
+elemadams <- ifelse(Housing$elem == "adams", 1, 0)
+elemcrest <- ifelse(Housing$elem == "crest", 1, 0)
+elemedge <- ifelse(Housing$elem == "edge", 1, 0)
+elemedison <- ifelse(Housing$elem == "edison", 1, 0)
+elemharris <- ifelse(Housing$elem == "harris", 1, 0)
+elemparker <- ifelse(Housing$elem == "parker", 1, 0)
+pairs(Housing[,1:9])
+```
+
+
+```{r}
+summary(Housing)
+```
+
+##Exploratory Data Analysis
+
+```{r}
+Housingmodel1 <- lm(price ~ . , data = Housing)
+summary(Housingmodel1)
+```
+
+  * Here we created a model using every variable provided from the Housing dataset. At a first glance, the Na's appearing in 'agestandardized' might raise some questions. When it comes down to it, this variable is just a standardization of 'yearbuilt' - meaning that there is little use in this model when yearbuilt is already in it. So, if you were to take out 'yearbuilt' from this model, the NA's found in 'agestandardized' would be replaced with numerical values. By checking each variable's p-values, it is apparent that 'size', 'lot', 'statussld', 'elemedison', and 'elemharris' are statistically significant. 
+
+Using 'significant' variables from above
+
+```{r}
+housingmodel2 <- lm(Housing$price ~ Housing$size + Housing$lot + statusact + elemedison + elemharris)
+summary(housingmodel2)
+```
+
+
+
+```{r}
+housingmodel3 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot + statussld + elemedison + elemharris)
+summary(housingmodel3)
+```
 
