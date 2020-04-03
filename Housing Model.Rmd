@@ -17,6 +17,15 @@ Housing <- read_excel("Housing.xlsx")
 Housing
 ```
 
+
+
+
+```{r}
+#Housing$status <- as.factor(Housing$status)
+#Housing$status <- as.factor(Housing$elem)
+
+```
+
 ```{r}
 statusact <- ifelse(Housing$status == "act", 1, 0)
 statuspen <- ifelse(Housing$status == "pen", 1, 0)
@@ -27,9 +36,7 @@ elemedge <- ifelse(Housing$elem == "edge", 1, 0)
 elemedison <- ifelse(Housing$elem == "edison", 1, 0)
 elemharris <- ifelse(Housing$elem == "harris", 1, 0)
 elemparker <- ifelse(Housing$elem == "parker", 1, 0)
-pairs(Housing[,1:9])
 ```
-
 
 ```{r}
 summary(Housing)
@@ -38,8 +45,32 @@ summary(Housing)
 ##Exploratory Data Analysis
 
 ```{r}
-Housingmodel1 <- lm(price ~ . , data = Housing)
-summary(Housingmodel1)
+pairs(Housing[,1:9])
+```
+```{r}
+cor(Housing[,c(1:9)])
+```
+
+From this correlation chart, we do not find any groundbreaking. With the highest correlation of 0.358, it's interesting to find out that its between `garagesize` and `price`. One might think the number of bedrooms or the the size of a house would have a greater correlation. Another realization with this chart is that `bedrooms` is the only variable with a negative correlation. Overall, no single variable correlates well with pricing.
+
+```{r}
+statusmodel <- lm(price~status, data=Housing)
+summary(statusmodel)
+```
+```{r}
+elemmodel <- lm(price~elem, data=Housing)
+summary(elemmodel)
+```
+
+
+##Initial Modeling
+
+```{r}
+housingmodel1 <- lm(price ~ . -Housing$status -Housing$elem , data = Housing)
+summary(housingmodel1)
+```
+```{r}
+plot(housingmodel1)
 ```
 
   * Here we created a model using every variable provided from the Housing dataset. At a first glance, the Na's appearing in 'agestandardized' might raise some questions. When it comes down to it, this variable is just a standardization of 'yearbuilt' - meaning that there is little use in this model when yearbuilt is already in it. So, if you were to take out 'yearbuilt' from this model, the NA's found in 'agestandardized' would be replaced with numerical values. By checking each variable's p-values, it is apparent that 'size', 'lot', 'statussld', 'elemedison', and 'elemharris' are statistically significant. 
@@ -47,8 +78,11 @@ summary(Housingmodel1)
 Using 'significant' variables from above
 
 ```{r}
-housingmodel2 <- lm(Housing$price ~ Housing$size + Housing$lot + statusact + elemedison + elemharris)
+housingmodel2 <- lm(Housing$price ~ Housing$size + Housing$lot + statussld + elemedison + elemharris)
 summary(housingmodel2)
+```
+```{r}
+plot(housingmodel2)
 ```
 
 
@@ -57,4 +91,28 @@ summary(housingmodel2)
 housingmodel3 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot + statussld + elemedison + elemharris)
 summary(housingmodel3)
 ```
+
+```{r}
+plot(housingmodel3)
+```
+
+```{r}
+housingmodel4 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot + statusact + statussld + elemedison + elemharris)
+summary(housingmodel4)
+```
+
+```{r}
+plot(housingmodel4)
+```
+```{r}
+housingmodel5 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot +statussld + elemharris + elemedison)
+summary(housingmodel5)
+```
+
+```{r}
+plot(housingmodel5)
+```
+
+
+
 
