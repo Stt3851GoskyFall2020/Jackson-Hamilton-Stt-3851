@@ -1,6 +1,6 @@
 ---
 title: "Housing Model"
-author: "Jackson Hamilton"
+author: "Connor Briggs, Jackson Hamilton, and Olivia Snyder"
 date: "3/25/2020"
 output: html_document
 ---
@@ -9,110 +9,193 @@ library(ggplot2)
 
 ```
 
-##Data Summary
+## 1)Data Summary
+
+  * Examine the statistics and values for each variable.  Are any missing?  Do any values need clarification or modification?  If so, why and what did you do?
 
 ```{r}
 library(readxl)
-Housing <- read_excel("Housing.xlsx")
-Housing
+housing <- read_excel("Housing.xlsx")
+housing
 ```
 
+After looking over the data, there doesn't seem to be any missing values. The variables `yearbuilt` and `agestandardized` appear to be similar, so we will check this further below. 
+
+```{r}
+housing$sld <- ifelse(housing$status == "sld", 1, 0)
+housing$pen <- ifelse(housing$status == "pen", 1, 0)
+housing$act <- ifelse(housing$status == "act", 1, 0)
+housing$adams <- ifelse(housing$elem == "adams", 1, 0)
+housing$crest <- ifelse(housing$elem == "crest", 1, 0)
+housing$edge <- ifelse(housing$elem == "edge", 1, 0)
+housing$edison <- ifelse(housing$elem == "edison", 1, 0)
+housing$harris <- ifelse(housing$elem == "harris", 1, 0)
+housing$parker <- ifelse(housing$elem == "parker", 1, 0)
+```
+
+Using the 'ifelse' statement allows us to look at each level of the two categorical variables. The first categorical variable, `status`, contains three levels. The second categorical variable, `elem`, contains six levels.
+
+```{r}
+summary(housing)
+```
+
+## 2) Exploratory Data Analysis
+
+  * Examine some of the variables relationships with price to help you determine which variables might be useful in an initial model.  Explain your conclusions from this initial screening.
+
+```{r}
+pairs(housing[,1:9])
+cor(housing[,c(1:9)])
+```
+
+From this displays above, it is difficult to tell which variables are actually significant. We know that `id` has no significance to the prices of houses, since the varible itself is used for identification purposes. We would expect `size`, `lot`, `bath`, `bedrooms`, and `garagesize` to all be positively related to price. After looking at the correlations, it's surprising to see that there is a negative correlation between `bedrooms` and `price`. Only `size` and `lot`, and maybe `bedrooms`, appear to be important.
+
+## 3) Initial Modeling
+
+ALL VARIABLES
+```{r}
+model1 <- lm(price ~ . -id, data = housing)
+summary(model1)
+par(mfrow = c(2, 2))
+plot(model1)
+```
+
+Here we created a model using every variable provided from the Housing dataset. At a first glance, the Na's appearing in 'agestandardized' might raise some questions. When it comes down to it, this variable is just a standardization of 'yearbuilt' - meaning that there is little use in this model when yearbuilt is already in it. So, if you were to take out 'yearbuilt' from this model, the NA's found in 'agestandardized' would be replaced with numerical values. By checking each variable's p-values, it is apparent that 'size', 'lot', 'sld', 'edison', and 'harris' are statistically significant. 
+
+SIGNIFICANT VARIABLES
+```{r}
+model2 <- lm(price ~ size + lot + sld + edison + harris, data=housing)
+summary(model2)
+par(mfrow = c(2, 2))
+plot(model2)
+```
+
+This model has a greater f-statistic, but a decrease in multiple R-squared and adjusted R-squared.
+
+ADDED BEDROOMS
+```{r}
+model3 <- lm(price ~ size + bedrooms + lot + sld + edison + harris, data=housing)
+summary(model3)
+par(mfrow = c(2, 2))
+plot(model3)
+```
+
+Here, we have added `bedrooms` back in to see what effect that would have on our model. It appears to have improved the adjusted R-squared and the intercept.
+
+ADDED ACT
+```{r}
+model4 <- lm(price ~ size + bedrooms + lot + act + sld + edison + harris, data=housing)
+summary(model4)
+par(mfrow = c(2, 2))
+plot(model4)
+```
+
+With these model, `act` was added in to see how it would effect `model3`. While the adjusted R-squared goes up slightly, both `act` and `sld` appear to be insignificant.
+
+LOG10 OF ALL VARIABLES
+```{r}
+model5 <- lm(price ~ I(log10(size)) + I(log10(lot)) + I(log10(bedrooms))  + sld + edison + harris, data = housing)
+summary(model5)
+par(mfrow = c(2, 2))
+plot(model5)
+```
+
+Taking Log10 of each variable in model3, we can see that this decreases the overall strength of this model significantly. Our adjusted R-squared value drops down to $0.4243$, and our f-statistic decreases as well.
+
+SQUARED OF ALL VARIABLES
+```{r}
+model6 <- lm(price ~ I((size)^2) + I((lot)^2) + I((bedrooms)^2) + sld + edison + harris, data = housing)
+summary(model6)
+par(mfrow = c(2, 2))
+plot(model6)
+```
+
+Using the same variables as before, we squared each variable instead of applying log10 to each variable. This significantly increased our model's overall strength besdies increasing the p-value of the bedrooms by a little bit.
+
+CUBES OF ALL VARIABLES
+```{r}
+model7 <- lm(price ~ I((size)^3) + I((lot)^3) + I((bedrooms)^3) + sld + edison + harris, data = housing)
+summary(model7)
+par(mfrow = c(2, 2))
+plot(model7)
+```
+
+Like before, we took each variable and cubed it to see how it would effect the model. This seems to have had a slightly better impact compared to squaring each variable. The f-statistic and the adjusted R-squared values are slightly higher.
+
+SQUARE ROOTS OF ALL VARIABLES
+```{r, 7}
+model8 <- lm(price ~ I((size)^.5) + I((lot)^.5) + I((bedrooms)^.5) + sld + edison + harris, data = housing)
+summary(model8)
+par(mfrow = c(2, 2))
+plot(model8)
+```
+
+After seeing the strengths of models increasing when the variables are squared and cubed, it isn't surprising to see the model decrease in strength when the square root is taken of each varibale. Both the f-statistics and the adjusted R-squared value fall below what was found in model3.
+
+A MESS OF INTERACTIVE TERMS
+```{r}
+model9 <- lm(price ~ size:lot + size:bedrooms + size:sld + size:edison + size:harris + lot:bedrooms + lot:sld + lot:edison + lot:harris + bedrooms:sld + bedrooms:edison + bedrooms:harris + sld:edison + sld:harris + edison:harris + size + lot + bedrooms + sld + edison + harris, data = housing)
+summary(model9)
+par(mfrow = c(2, 2))
+plot(model9)
+```
+
+This model displays numerous variable interactions. It is interesting to see that the adjusted R-squared is one of the highest we have had so far. A drawback is that the f-statistic is lower than most we have seen. 
+
+REMOVED TERMS ONE BY ONE
+```{r}
+model10 <- lm(price ~ size:lot + size:harris + lot:harris + sld:edison + sld, data = housing)
+summary(model10)
+par(mfrow = c(2, 2))
+plot(model10)
+```
+
+After going through and narrowing down our model, we are left with with the interactive terms `size:lot`, `size:harris`, `lot:harris`, `sld:edison`, and just `sld`. We are left with a high f-statistic and an adjusted R-squared value of $0.5429$. We can write this out as $$price = 211.640 -45.690(sld)+9.277(size:lot)+71.013(size:harris)-23.734(lot:harris)+97.973(sld:edison)$$
+This appears to be the strongest model we have found so far.
+
+## 4) Model Modification
+
+  * Consider modifying your model based upon your initial results and/or diagnostic plots from the model.  Explain any modifications that you are making.  Consider variance inflation factors for each predictor in your model and comment on that in your model selection process.
+
+By looking at the diagnostic plots for model 10, it is apparent that there are two points are high leverage. We should first take these out to see how they change our model.
+```{r}
+housing2 <- housing[c(-74, -66),]
+model.f <- lm(price ~ size:lot + size:harris + lot:harris + sld:edison + sld, data = housing2)
+summary(model.f)
+par(mfrow = c(2, 2))
+plot(model.f)
+
+```
+This gives us a slightly smaller f-statistic and adjusted R-squared value. Regardless, both are very similar. we can write this version of the model as $$price = 226.155-48.747(sld)+7.519(size:lot)+68.442(size:harris)-24.455(lot:harris)+98.730(sld:edison)$$
 
 
 
 ```{r}
-#Housing$status <- as.factor(Housing$status)
-#Housing$status <- as.factor(Housing$elem)
-
+library(car)
+vif(model.f)
 ```
+Calculating the VIF helps determine to see how well each predictor is associated with the other predictors in the model. Looking at the values given, there is nothing to suggest that this model is over-fitting in any way. The interactive term `size:harris` is the largest, but it isn't too concerning at its current value.
+
+## 5) Conclusion
 
 ```{r}
-statusact <- ifelse(Housing$status == "act", 1, 0)
-statuspen <- ifelse(Housing$status == "pen", 1, 0)
-statussld <- ifelse(Housing$status == "sld", 1, 0)
-elemadams <- ifelse(Housing$elem == "adams", 1, 0)
-elemcrest <- ifelse(Housing$elem == "crest", 1, 0)
-elemedge <- ifelse(Housing$elem == "edge", 1, 0)
-elemedison <- ifelse(Housing$elem == "edison", 1, 0)
-elemharris <- ifelse(Housing$elem == "harris", 1, 0)
-elemparker <- ifelse(Housing$elem == "parker", 1, 0)
+confint(model.f)
+predict(model.f, newdata = data.frame(size = 1, lot = 1, harris = 1, sld = 1, edison = 0), interval = "confidence")
 ```
 
-```{r}
-summary(Housing)
-```
+Our final model for predicting the price of a house based off the data provided can be expressed as $$price = 226.155-48.747(sld)+7.519(size:lot)+68.442(size:harris)-24.455(lot:harris)+98.730(sld:edison)$$. This model is similar to that of model10, but it lacks two points with high leverage. This model gives us an adjusted R-squared value of $0.5108$. The 95% confidence intervals for each variable :
+ 
+  * intercept - [189.418745, 262.892124]
+  
+  * sld - [-69.415644, -28.079269]
+  
+  * size:lot - [3.561311, 11.475748]
+  
+  * size:harris - [42.289536, 94.594095]
+  
+  * lot:harris - [-39.470175, -9.440641]
+  
+  * sld:edison - [67.335535, 130.123882]
 
-##Exploratory Data Analysis
-
-```{r}
-pairs(Housing[,1:9])
-```
-```{r}
-cor(Housing[,c(1:9)])
-```
-
-From this correlation chart, we do not find any groundbreaking. With the highest correlation of 0.358, it's interesting to find out that its between `garagesize` and `price`. One might think the number of bedrooms or the the size of a house would have a greater correlation. Another realization with this chart is that `bedrooms` is the only variable with a negative correlation. Overall, no single variable correlates well with pricing.
-
-```{r}
-statusmodel <- lm(price~status, data=Housing)
-summary(statusmodel)
-```
-```{r}
-elemmodel <- lm(price~elem, data=Housing)
-summary(elemmodel)
-```
-
-
-##Initial Modeling
-
-```{r}
-housingmodel1 <- lm(price ~ . -Housing$status -Housing$elem , data = Housing)
-summary(housingmodel1)
-```
-```{r}
-plot(housingmodel1)
-```
-
-  * Here we created a model using every variable provided from the Housing dataset. At a first glance, the Na's appearing in 'agestandardized' might raise some questions. When it comes down to it, this variable is just a standardization of 'yearbuilt' - meaning that there is little use in this model when yearbuilt is already in it. So, if you were to take out 'yearbuilt' from this model, the NA's found in 'agestandardized' would be replaced with numerical values. By checking each variable's p-values, it is apparent that 'size', 'lot', 'statussld', 'elemedison', and 'elemharris' are statistically significant. 
-
-Using 'significant' variables from above
-
-```{r}
-housingmodel2 <- lm(Housing$price ~ Housing$size + Housing$lot + statussld + elemedison + elemharris)
-summary(housingmodel2)
-```
-```{r}
-plot(housingmodel2)
-```
-
-
-
-```{r}
-housingmodel3 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot + statussld + elemedison + elemharris)
-summary(housingmodel3)
-```
-
-```{r}
-plot(housingmodel3)
-```
-
-```{r}
-housingmodel4 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot + statusact + statussld + elemedison + elemharris)
-summary(housingmodel4)
-```
-
-```{r}
-plot(housingmodel4)
-```
-```{r}
-housingmodel5 <- lm(Housing$price ~ Housing$size + Housing$bedrooms + Housing$lot +statussld + elemharris + elemedison)
-summary(housingmodel5)
-```
-
-```{r}
-plot(housingmodel5)
-```
-
-
-
+To see how this model works, we created a hypothetical house that is 1000sqft. It is in the Harris school district, has a lot size equaling 1, and it has been sold already. Using our model, we have found a 95% prediction interval for the price of this house. The lower side of this interval provides us with the price \$$203,406.10$. The upper side of this interval provides us with the price \$$254,419.70$. The fit price that is gives with these inputs is \$$228,912.90$.
 
