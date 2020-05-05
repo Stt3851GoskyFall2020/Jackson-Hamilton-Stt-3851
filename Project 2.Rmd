@@ -1,0 +1,172 @@
+---
+title: "Project 2"
+author: "Jackson Hamilton"
+date: "5/4/2020"
+output: html_document
+---
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(leaps)
+```
+
+```{r}
+housing <- read_xlsx("Housing.xlsx")
+```
+FORWARD SELECTION
+```{r}
+regfwd.house <- regsubsets(price ~ .-id, data=housing, nvmax=13, method = "forward")
+reg.summary <- summary(regfwd.house)
+
+reg.summary
+```
+
+```{r}
+coef(regfwd.house,13)
+plot(regfwd.house)
+```
+REGSUBSETS OVER TRAINING DATA
+```{r}
+set.seed(1)
+train <- sample(76,38)
+test <- (-train)
+
+regfit.best <- regsubsets(price ~ .-id, data=housing[test,], nvmax=13, really.big= TRUE)
+test.mat <- model.matrix(price ~ .-id, data=housing[test,])
+train.mat <- model.matrix(price ~ .-id, data=housing[train,])
+val.errors <- rep(NA,13)
+
+for(i in 1:13){
+  coefi=coef(regfit.best,id=i)
+  pred=train.mat[,names(coefi)]%*%coefi
+  val.errors[i] <- mean((housing$price[train]-pred)^2)
+}
+val.errors
+which.min(val.errors)
+coef(regfit.best,which.min(val.errors))
+```
+
+REGSUBSETS OVER ENTIRE DATA WITH DETERMINED NUMBER OF VARIBALES
+```{r}
+regfit.best2 <- regsubsets(price ~ ., data=housing,nvmax=13)
+coef(regfit.best2,6)
+```
+
+LASSO REGRESSION
+
+```{r}
+library(glmnet)
+x <- model.matrix(price~. , data=housing)[,-1]
+y <- housing$price
+```
+
+```{r}
+dim(coef(ridge.mod))
+```
+
+```{r}
+train <- sample(1:nrow(x), nrow(x)/2)
+test <- (-train)
+y.test <- y[test]
+```
+
+```{r}
+lasso.mod <- glmnet(x[train,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod)
+```
+
+```{r}
+set.seed(1)
+cv.out <- cv.glmnet(x[train,],y[train],alpha=1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+lasso.pred <- predict(lasso.mod,s=bestlam,newx=x[test,])
+```
+
+```{r}
+out <- glmnet(x,y,alpha=1,lambda=grid)
+lasso.coef <- predict(out,type="coefficients",s=bestlam)[1:16,]
+lasso.coef
+```
+
+PRINCIPAL COMPONENT REGRESSION
+
+```{r}
+library(pls)
+set.seed(2)
+pcr.fit <- pcr(price~., data=housing, scale=TRUE, validation="CV")
+summary(pcr.fit)
+```
+
+```{r}
+validationplot(pcr.fit,val.type = "MSEP")
+```
+
+```{r}
+set.seed(1)
+pcr.fit <- pcr(price~., data=housing, subset=train, scale=TRUE, validation="CV")
+validationplot(pcr.fit, val.type="MSEP")
+```
+
+```{r}
+pcr.pred <- predict(pcr.fit, x[test,],ncomp=7)
+mean((pcr.pred-y.test)^2)
+```
+
+```{r}
+pcr.fit <- pcr(y~x, scale=TRUE, ncomp=7)
+summary(pcr.fit)
+```
+
+
+
+PARTIAL LEAST SQUARES REGRESSION
+
+```{r}
+set.seed(1)
+pls.fit <- plsr(price~., data=housing,subset=train,scale=TRUE,validation="CV")
+summary(pls.fit)
+validationplot(pls.fit,val.type="MSEP")
+```
+
+```{r}
+pls.pred <- predict(pls.fit,x[test,],ncomp=2)
+mean((pls.pred-y.test)^2)
+```
+
+```{r}
+pls.fit <- plsr(price ~ ., data=housing, scale=TRUE, ncomp=2)
+summary(pls.fit)
+```
+
+MSE
+
+regsubset over training
+```{r}
+val.errors
+which.min(val.errors)
+```
+
+??? fwd regsubset
+```{r}
+val.errors1 <- rep(NA,13)
+for(i in 1:13){
+  coefi=coef(regfwd.house,id=i)
+  pred=model.matrix(price ~ .-id, data=housing)[,names(coefi)]%*%coefi
+  val.errors1[i] <- mean((housing$price-pred)^2)
+}
+val.errors1
+which.min(val.errors1)
+```
+
+lasso
+```{r}
+mean((lasso.pred-y.test)^2)
+```
+
+PLS
+```{r}
+mean((pls.pred-y.test)^2)
+```
+
