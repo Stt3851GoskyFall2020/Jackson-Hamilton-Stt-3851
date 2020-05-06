@@ -1,0 +1,209 @@
+---
+title: "Housing Model"
+author: "Connor Briggs, Jackson Hamilton, and Olivia Snyder"
+date: "5/6/2020"
+output: html_document
+---
+
+```{r}
+library(readxl)
+library(leaps)
+library(glmnet)
+library(pls)
+
+housing <- read_xlsx("Housing.xlsx")
+housing$sld <- ifelse(housing$status == "sld", 1, 0)
+housing$pen <- ifelse(housing$status == "pen", 1, 0)
+housing$adams <- ifelse(housing$elem == "adams", 1, 0)
+housing$edge <- ifelse(housing$elem == "edge", 1, 0)
+housing$edison <- ifelse(housing$elem == "edison", 1, 0)
+housing$harris <- ifelse(housing$elem == "harris", 1, 0)
+housing$parker <- ifelse(housing$elem == "parker", 1, 0)
+
+```
+## 1) Part A: Previous Model
+
+  * Consider the model that you arrived at in the previous project as the first candidate model.
+
+```{r}
+housing2 <- housing[c(-74, -66),]
+model.f <- lm(price ~ size + lot + harris + edison + size:lot + size:harris + lot:harris + sld:edison + sld, data = housing2)
+summary(model.f)
+
+```
+
+The final model from the first project was loaded in and recreated based on the criteria decided previously. The individual terms for the interaction parts of the model were added in as well.
+
+## 2) Part B: Forward Selection
+
+  * Create a second candidate model by using regsubsets over the entire data set.  You can decide whether you prefer overall selection, forward selection, or backward selection, and you can decide which statistic you will use to determine the best model from the regsubsets process.  Just conduct a justifiable model selection process and report the predictors in your final model.
+
+```{r}
+regfwdfull <- regsubsets(price ~ . - id - agestandardized - status - elem, data = housing, nvmax = 13, method = "forward")
+regfwdfullsummary <- summary(regfwdfull)
+
+regfwdfullsummary
+
+```
+We chose to use forward selection when creating our second model because we had mostly followed a backwards selection process for our first model. This should hopefully yield different results from the previous model.
+
+```{r}
+coef(regfwdfull, 13)
+regfwdfullsummary$adjr2
+par(mfrow=c(1, 2))
+plot(regfwdfull, scale = "r2")
+plot(regfwdfull, scale = "adjr2")
+par(mfrow=c(1, 2))
+plot(regfwdfull, scale = "Cp")
+plot(regfwdfull, scale = "bic")
+
+```
+The coefficients for a model using all parameters was printed as well as the adjusted R-squared value for each number of parameters. As can be seen, after the ninth parameter, adjusted R-squared begins to fall off. Plots for r2, adjr2, cp, and bic were created. What can be noticed immediately, is that the best models for each value size, lot, garagesize, sold status, edison, and harris all appear.
+
+```{r}
+par(mfrow=c(2,2))
+plot(regfwdfullsummary$rsq, xlab = "Number of Variables", ylab = "RSQ", type = "l")
+
+plot(regfwdfullsummary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+which.max(regfwdfullsummary$adjr2)
+points(9, regfwdfullsummary$adjr2[9], col = "red", cex = 2, pch = 20)
+
+plot(regfwdfullsummary$cp, xlab = "Number of Variables", ylab = "Cp", type = 'l')
+which.min(regfwdfullsummary$cp)
+points(7, regfwdfullsummary$cp[7], col = "red", cex = 2, pch = 20)
+
+plot(regfwdfullsummary$bic, xlab = "Number of Variables", ylab = "BIC", type = 'l')
+which.min(regfwdfullsummary$bic)
+points(6, regfwdfullsummary$bic[6], col = "red", cex = 2, pch = 20)
+
+```
+Adjusted R-squared is at a minimum for 9 variables, Cp at 7, and BIC at 6. Six variables seems to be a nice middle. The increase in Cp between 6 and 7 variables is negligible, and the increase between 6 and 9 for adjr2 was previously not shown to be very large. However, increasing the number of variables past 6 quickly increases BIC, so we will stick with 6.
+
+```{r}
+coef(regfwdfull, 6)
+
+model2 <- lm(price ~ size + lot + garagesize + sld + edison + harris, data = housing)
+summary(model2)
+
+```
+Model 2 was created using the six best variables for a forward regression model. The variables selected exactly match the variables previously discussed as being included in the best plots. Based on the summary, we do have a significant model.
+
+## 3) Part C: Training/Test Split
+
+  * Create a training/test split of the data by which roughly half of the 76 observations are training data and half are test data.
+
+```{r}
+set.seed(1)
+train <- sample(76, 38, replace = FALSE)
+test <- (1:76)[-train]
+
+```
+Half of the row numbers from the Housing data were sampled to be training data and the rest were saved as test data.
+
+## 4) Part D: Regsubsets Using Training Data
+
+  * Now use regsubsets over only the training data to determine the number of predictors that should be in your final model.  Then use regsubsets over the entire data set with the determined number of variables to determine your third candidate model.
+
+```{r}
+set.seed(1)
+regfwdtrain <- regsubsets(price ~ . - id - agestandardized - status - elem, data = housing[train,], nvmax = 13)
+testmatrix <- model.matrix(price ~ . - id - agestandardized - status - elem, data = housing[test,])
+val.errors <- rep(NA, 13)
+for (i in 1:13)
+{
+  coefi = coef(regfwdtrain, id = i)
+  pred = testmatrix[, names(coefi)] %*% coefi
+  val.errors[i] = mean((housing$price[test] - pred)^2)
+  
+}
+
+val.errors
+which.min(val.errors)
+
+coef(regfwdtrain, which.min(val.errors))
+
+model3 <- lm(price ~ size + lot + sld + edison + harris + parker, data = housing[train, ])
+summary(model3)
+model3.mse <- predict(model3, housing[test,])
+model3.mse <- colMeans((housing[test, 2] - model3.mse)^2)
+
+```
+Using the training data over a forward regression model found that 6 variables was the best number to minimize errors. However, the six variables selected through this method differed from the forward selection we had decided on. This model replaced garagesize with parker. The summary for this model shows it to be significant.
+
+## 5) Part E: Lasso Regression
+
+  * Next, use either Ridge Regression or Lasso Regression with the training data, and use cross validation via the cv.glmnet function to determine the best λ value. The model from this step with the best λ value will be your fourth candidate model.
+
+```{r}
+set.seed(1)
+grid=10^seq(10,-2,length=100)
+x <- model.matrix(price ~ . - id - agestandardized - status - elem, data = housing)[,-1]
+y <- housing$price
+lasso.mod <- glmnet(x[train, ], y[train], alpha = 1)
+plot(lasso.mod)
+cv.out <- cv.glmnet(x[train, ], y[train], alpha = 1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+bestlam
+lasso.pred <- predict(lasso.mod, s = bestlam, newx = x[test,])
+lasso.mse <- mean((lasso.pred-y[test])^2)
+out <- glmnet(x, y, alpha=1, lambda =  grid)
+lasso.coef <- predict(out, type = "coefficients", s = bestlam)[1:14,]
+model4 <- lasso.coef[lasso.coef!=0]
+model4
+
+```
+Next, we did a lasso model of our data over the training set. The best lambda value was found to be aproximately 1.9 based on cross validation. The coefficients for the lasso model with the best lambda value became our model 4. It contains 11 predictors, and includes bath, bedrooms, yearbuilt, and pen; which had not been seen previously in our models.
+
+## 6) Part F: Partial Least Squares Regression
+
+  * Finally, use either  principal components regression or partial least squares regression for the training data.  Use cross validation (see the class notes or the Chapter 6 Lab from the text) to help you determine the number of components in the model and briefly explain your choice.  This model will be your 5th candidate model.
+
+```{r}
+housing.pls <- read_xlsx("Housing.xlsx")
+x <- model.matrix(price~. , data=housing.pls)[,-1]
+y <- housing.pls$price
+y.test <- y[test]
+set.seed(1)
+pls.fit <- plsr(price~., data=housing.pls,subset=train,scale=TRUE,validation="CV")
+summary(pls.fit)
+validationplot(pls.fit,val.type="MSEP")
+pls.pred <- predict(pls.fit,x[test,],ncomp=2)
+pls.mse <- mean((pls.pred-y.test)^2)
+pls.fit <- plsr(price ~ ., data=housing.pls, scale=TRUE, ncomp=2)
+summary(pls.fit)
+
+```
+A partial least squares regression was then done for the training section of the Housing data. Through cross validation, the best model was found to be two components, as this was the value at which the CV was at its smallest. A partial least squares model was fit with two components and become our fifth and final model.
+
+## 7) Part G: Mean Square Error and Conclusion
+
+  * For each of the five candidate models, calculate the mean square error for predicting the outcomes in the test data set that you created in part c.   Based on this comparison, which model do you prefer for this situation?
+
+```{r}
+price.test <- colMeans((colMeans(housing[test,2]) - housing[test,1])^2)
+
+#First project
+model1.mse <- colMeans((housing[test, 2] - predict(model.f, housing[test,]))^2)
+model1.mse
+1 - model1.mse / price.test
+
+#Forward selection
+model2.mse <- colMeans((housing[test, 2] - predict(model2, housing[test,]))^2)
+model2.mse
+1 - model2.mse / price.test
+
+#Training
+model3.mse
+1 - model3.mse / price.test
+
+#Lasso
+lasso.mse
+1 - lasso.mse / price.test
+
+#Pls
+pls.mse
+1 - pls.mse / price.test
+
+```
+The MSE for each of the five models was printed as long as each models predictive accuracy over the test data. As can be seen, the origional model from the previous project minimized the errors over the test data. The second best was the forward selection created by us, then the lasso model, then forward selection with training, and finally the partial least squares model. As such, the model from the previous project is still our prefered model. The equation is $$price = 81.198+72.000(size)+31.119(lot)+55.128(harris)+33.552(edison)-45.818(sld)-8.245(size:lot)+39.796(size:harris)-24.045(lot:harris)+64.928(sld:edison)$$ for our final model.
